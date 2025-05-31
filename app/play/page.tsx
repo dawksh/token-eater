@@ -13,6 +13,7 @@ const WORLD_H = 1000;
 const GAME_ID = 'default';
 const WS_BASE_URL = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_WS_BASE_URL || 'localhost:3001') : 'localhost:3001';
 
+
 export default function Play() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const player = useRef({ x: WORLD_W / 2, y: WORLD_H / 2, r: PLAYER_RADIUS, targetX: WORLD_W / 2, targetY: WORLD_H / 2 });
@@ -27,6 +28,7 @@ export default function Play() {
     const [socket, setSocket] = useState<Socket | null>(null);
     const [players, setPlayers] = useState<any[]>([]);
     const [myId, setMyId] = useState<string | null>(null);
+    const myIdRef = useRef<string | null>(null);
     const [wasEaten, setWasEaten] = useState(false);
     const lastMoveSent = useRef(0);
 
@@ -61,13 +63,16 @@ export default function Play() {
         s.on('state', ({ players, food: foodArr }: { players: any[]; food: any[] }) => {
             setPlayers(players);
             food.current = foodArr;
-            if (!myId) {
+            if (!myIdRef.current) {
                 const me = players.find((p: any) => p.name === name);
-                if (me) setMyId(me.id);
+                if (me) {
+                    setMyId(me.id);
+                    myIdRef.current = me.id;
+                }
             }
-            const me = players.find((p: any) => p.id === (myId || (players.find((p: any) => p.name === name)?.id)));
+            const me = players.find((p: any) => p.id === (myIdRef.current || (players.find((p: any) => p.name === name)?.id)));
             setScore(me?.score || 0);
-            if (myId && !players.some((p: any) => p.id === myId)) {
+            if (myIdRef.current && !players.some((p: any) => p.id === myIdRef.current)) {
                 setWasEaten(true);
             }
         });
@@ -210,6 +215,7 @@ export default function Play() {
         setShowModal(true);
         setName("");
         setMyId(null);
+        myIdRef.current = null;
         setScore(0);
     };
 
@@ -293,20 +299,14 @@ export default function Play() {
                         gap: 18,
                         minWidth: 260,
                     }}>
-                        <h2 style={{ color: '#dc2626', fontWeight: 700, fontSize: 24, margin: 0 }}>You were eaten! Game over.</h2>
-                        <button onClick={handleRestart} style={{
-                            background: '#2563eb',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: 10,
-                            padding: '8px 22px',
-                            fontSize: 18,
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            marginTop: 6,
-                            boxShadow: '0 1px 4px 0 rgba(30,41,59,0.08)',
-                            transition: 'background 0.2s',
-                        }}>Restart</button>
+                        <h2 style={{
+                            color: '#dc2626',
+                            fontWeight: 700,
+                            fontSize: 24,
+                            margin: 0,
+                            WebkitTextStroke: '1px #dc2626',
+                            textShadow: '2px 2px 0 #dc2626'
+                        }}>YOU WERE LOOTED</h2>
                     </div>
                 </div>
             )}
