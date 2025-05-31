@@ -27,6 +27,7 @@ export default function Play() {
     const [players, setPlayers] = useState<any[]>([]);
     const [myId, setMyId] = useState<string | null>(null);
     const [wasEaten, setWasEaten] = useState(false);
+    const lastMoveSent = useRef(0);
 
 
     useEffect(() => {
@@ -79,7 +80,11 @@ export default function Play() {
         if (!socket || !myId) return;
         let animation: number;
         const sendMove = () => {
-            socket.emit('move', { x: player.current.x, y: player.current.y });
+            const now = Date.now();
+            if (now - lastMoveSent.current > 50) { // 20fps
+                socket.emit('move', { x: player.current.x, y: player.current.y });
+                lastMoveSent.current = now;
+            }
         };
         const handleMouse = (e: MouseEvent) => {
             mouse.current = { x: e.clientX, y: e.clientY };
@@ -105,8 +110,8 @@ export default function Play() {
             const camX = me.x - w / 2;
             const camY = me.y - h / 2;
             const mouseWorld = { x: camX + mouse.current.x, y: camY + mouse.current.y };
-            player.current.targetX += (mouseWorld.x - player.current.targetX) * 0.2;
-            player.current.targetY += (mouseWorld.y - player.current.targetY) * 0.2;
+            player.current.targetX += (mouseWorld.x - player.current.targetX) * 0.5;
+            player.current.targetY += (mouseWorld.y - player.current.targetY) * 0.5;
             player.current.x = Math.max(getRadius(score), Math.min(WORLD_W - getRadius(score), player.current.x));
             player.current.y = Math.max(getRadius(score), Math.min(WORLD_H - getRadius(score), player.current.y));
             sendMove();
