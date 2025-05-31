@@ -50,7 +50,7 @@ export default function Play() {
     useEffect(() => {
         if (showModal || !name) return;
         const s = io('https://token-eater-backend-production.up.railway.app', {
-            transports: ['websocket', 'polling'],
+            transports: ['websocket'],
             upgrade: true,
             rememberUpgrade: true
         });
