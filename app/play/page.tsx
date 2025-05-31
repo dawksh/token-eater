@@ -7,11 +7,10 @@ const PLAYER_RADIUS = 20;
 const PLAYER_RADIUS_GROWTH = 1;
 const FOOD_RADIUS = 8;
 const FOOD_RADIUS_GROWTH = 1;
-const PLAYER_SPEED = 0.00015;
+const PLAYER_SPEED = 0.0005;
 const WORLD_W = 1920;
 const WORLD_H = 1000;
 const GAME_ID = 'default';
-const WS_BASE_URL = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_WS_BASE_URL || 'localhost') : 'localhost';
 
 export default function Play() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -50,7 +49,11 @@ export default function Play() {
 
     useEffect(() => {
         if (showModal || !name) return;
-        const s = io(`ws://${WS_BASE_URL}:3001`, { transports: ['websocket'] });
+        const s = io('https://token-eater-backend-production.up.railway.app', {
+            transports: ['websocket', 'polling'],
+            upgrade: true,
+            rememberUpgrade: true
+        });
         setSocket(s);
         s.emit('join', { name, gameId: GAME_ID, walletAddress: '0x8e3a9b2c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a' });
         s.on('state', ({ players, food: foodArr }: { players: any[]; food: any[] }) => {
