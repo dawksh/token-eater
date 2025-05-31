@@ -2,6 +2,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { useAccount } from 'wagmi';
 
 const PLAYER_RADIUS = 20;
 const PLAYER_RADIUS_GROWTH = 1;
@@ -15,6 +16,8 @@ const WS_BASE_URL = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_WS_
 
 
 export default function Play() {
+
+    const { address } = useAccount();
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const player = useRef({ x: WORLD_W / 2, y: WORLD_H / 2, r: PLAYER_RADIUS, targetX: WORLD_W / 2, targetY: WORLD_H / 2 });
     const food = useRef<any[]>([]);
@@ -59,7 +62,7 @@ export default function Play() {
             rememberUpgrade: true
         });
         setSocket(s);
-        s.emit('join', { name, gameId: GAME_ID, walletAddress: '0x8e3a9b2c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a' });
+        s.emit('join', { name, gameId: GAME_ID, walletAddress: address });
         s.on('state', ({ players, food: foodArr }: { players: any[]; food: any[] }) => {
             setPlayers(players);
             food.current = foodArr;
