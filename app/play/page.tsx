@@ -213,14 +213,6 @@ export default function Play() {
         if (name.trim()) setShowModal(false);
     };
 
-    const handleRestart = () => {
-        setWasEaten(false);
-        setShowModal(true);
-        setName("");
-        setMyId(null);
-        myIdRef.current = null;
-        setScore(0);
-    };
 
     return (
         <>
@@ -335,7 +327,7 @@ export default function Play() {
                 border: '1.5px solid #334155',
                 boxShadow: '0 2px 8px 0 rgba(0,0,0,0.08)',
             }}>
-                <span role="img" aria-label="score">🍽️</span> {score}
+                <span role="img" aria-label="score">🍽️</span> {score * 10 ^ 10}
             </div>
             <canvas
                 ref={canvasRef}

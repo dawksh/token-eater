@@ -510,12 +510,12 @@ export default function Home() {
         </button>
         {tx !== "" && <div>
           <Link href="/play">
-            <h1>Play</h1>
+            <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+              Play Now
+            </button>
           </Link>
           <p>
-            <a href={`https://testnet.monad.xyz/tx/${tx}`} target="_blank" rel="noopener noreferrer">
-              View on Monad Explorer
-            </a>
+            Transaction Hash: {tx}
           </p>
         </div>}
       </div>

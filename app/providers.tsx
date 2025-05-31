@@ -9,7 +9,7 @@ import '@rainbow-me/rainbowkit/styles.css';
 
 const wagmiConfig = getDefaultConfig({
     chains: [monadTestnet],
-    projectId: process.env.NEXT_PUBLIC_PROJECT_ID || 'b83bf335646992f89618effa100dd365',
+    projectId: process.env.NEXT_PUBLIC_PROJECT_ID || '7febbd905df720d5866a44b58cd1b1a9',
     appName: "Token Eater",
 });
 
