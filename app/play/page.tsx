@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useRef, useEffect, useState } from 'react';
+import { io, Socket } from 'socket.io-client';
 
 const PLAYER_RADIUS = 20;
 const PLAYER_RADIUS_GROWTH = 1;
@@ -8,7 +9,7 @@ const FOOD_RADIUS = 8;
 const FOOD_RADIUS_GROWTH = 1;
 const PLAYER_SPEED = 0.00015;
 const WORLD_W = 1920;
-const WORLD_H = 1080;
+const WORLD_H = 1000;
 const GAME_ID = 'default';
 const WS_BASE_URL = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_WS_BASE_URL || 'localhost') : 'localhost';
 
@@ -23,7 +24,7 @@ export default function Play() {
     const [name, setName] = useState("");
     const [showModal, setShowModal] = useState(true);
     const nameInputRef = useRef<HTMLInputElement>(null);
-    const [ws, setWs] = useState<WebSocket | null>(null);
+    const [socket, setSocket] = useState<Socket | null>(null);
     const [players, setPlayers] = useState<any[]>([]);
     const [myId, setMyId] = useState<string | null>(null);
     const [wasEaten, setWasEaten] = useState(false);
@@ -49,36 +50,33 @@ export default function Play() {
 
     useEffect(() => {
         if (showModal || !name) return;
-        const wsUrl = `ws://${WS_BASE_URL}:3001/ws/${GAME_ID}`;
-        const socket = new window.WebSocket(wsUrl);
-        setWs(socket);
-        socket.onopen = () => {
-            socket.send(JSON.stringify({ type: 'join', name, gameId: GAME_ID, walletAddress: '0x8e3a9b2c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a' }));
-        };
-        socket.onmessage = e => {
-            const msg = JSON.parse(e.data);
-            if (msg.type === 'state') {
-                setPlayers(msg.players);
-                food.current = msg.food;
-                if (!myId) {
-                    const me = msg.players.find((p: any) => p.name === name);
-                    if (me) setMyId(me.id);
-                }
-                const me = msg.players.find((p: any) => p.id === (myId || (msg.players.find((p: any) => p.name === name)?.id)));
-                setScore(me?.score || 0);
-                if (myId && !msg.players.some((p: any) => p.id === myId)) {
-                    setWasEaten(true);
-                }
+        const s = io(`ws://${WS_BASE_URL}:3001`, { transports: ['websocket'] });
+        setSocket(s);
+        s.emit('join', { name, gameId: GAME_ID, walletAddress: '0x8e3a9b2c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a' });
+        s.on('state', ({ players, food: foodArr }: { players: any[]; food: any[] }) => {
+            setPlayers(players);
+            food.current = foodArr;
+            if (!myId) {
+                const me = players.find((p: any) => p.name === name);
+                if (me) setMyId(me.id);
             }
-        };
-        return () => { socket.close(); };
+            const me = players.find((p: any) => p.id === (myId || (players.find((p: any) => p.name === name)?.id)));
+            setScore(me?.score || 0);
+            if (myId && !players.some((p: any) => p.id === myId)) {
+                setWasEaten(true);
+            }
+        });
+        s.on('disconnect', () => {
+            // Optionally handle disconnect
+        });
+        return () => { s.disconnect(); };
     }, [showModal, name]);
 
     useEffect(() => {
-        if (!ws || !myId) return;
+        if (!socket || !myId) return;
         let animation: number;
         const sendMove = () => {
-            ws.readyState === 1 && ws.send(JSON.stringify({ type: 'move', x: player.current.x, y: player.current.y }));
+            socket.emit('move', { x: player.current.x, y: player.current.y });
         };
         const handleMouse = (e: MouseEvent) => {
             mouse.current = { x: e.clientX, y: e.clientY };
@@ -173,10 +171,10 @@ export default function Play() {
             cancelAnimationFrame(animation);
             canvas?.removeEventListener('mousemove', handleMouse);
         };
-    }, [ws, myId, players, viewport]);
+    }, [socket, myId, players, viewport]);
 
     useEffect(() => {
-        if (!ws || !myId) return;
+        if (!socket || !myId) return;
         const handleClick = (e: MouseEvent) => {
             const { w, h } = viewport;
             const me = players.find(p => p.id === myId) || { x: WORLD_W / 2, y: WORLD_H / 2, score: 0 };
@@ -186,12 +184,12 @@ export default function Play() {
             const camY = me.y - h / 2;
             const clickWorld = { x: camX + e.clientX, y: camY + e.clientY };
             const f = food.current.find(f => Math.hypot(f.x - clickWorld.x, f.y - clickWorld.y) < getFoodRadius(f.score || 0) + getRadius(me.score || 0));
-            if (f) ws.send(JSON.stringify({ type: 'eat', foodId: f.id }));
+            if (f) socket.emit('eat', { foodId: f.id });
         };
         const canvas = canvasRef.current;
         canvas?.addEventListener('click', handleClick);
         return () => { canvas?.removeEventListener('click', handleClick); };
-    }, [ws, myId, players, viewport]);
+    }, [socket, myId, players, viewport]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -243,6 +241,7 @@ export default function Play() {
                                 width: 180,
                                 textAlign: 'center',
                                 background: '#f8fafc',
+                                color: '#0f172a',
                             }}
                             maxLength={16}
                             placeholder="Your name"
