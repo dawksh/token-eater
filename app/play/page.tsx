@@ -11,6 +11,7 @@ const PLAYER_SPEED = 0.0005;
 const WORLD_W = 1920;
 const WORLD_H = 1000;
 const GAME_ID = 'default';
+const WS_BASE_URL = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_WS_BASE_URL || 'localhost:3001') : 'localhost:3001';
 
 export default function Play() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -50,7 +51,7 @@ export default function Play() {
 
     useEffect(() => {
         if (showModal || !name) return;
-        const s = io('https://token-eater-backend-production.up.railway.app', {
+        const s = io(`http://${WS_BASE_URL}`, {
             transports: ['websocket'],
             upgrade: true,
             rememberUpgrade: true
