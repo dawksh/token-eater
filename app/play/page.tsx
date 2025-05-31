@@ -3,11 +3,14 @@
 import React, { useRef, useEffect, useState } from 'react';
 
 const PLAYER_RADIUS = 20;
+const PLAYER_RADIUS_GROWTH = 1;
 const FOOD_RADIUS = 8;
-const PLAYER_SPEED = 0.0001;
-const WORLD_W = 1000;
-const WORLD_H = 1000;
+const FOOD_RADIUS_GROWTH = 1;
+const PLAYER_SPEED = 0.00015;
+const WORLD_W = 1920;
+const WORLD_H = 1080;
 const GAME_ID = 'default';
+const WS_BASE_URL = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_WS_BASE_URL || 'localhost') : 'localhost';
 
 export default function Play() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -46,11 +49,11 @@ export default function Play() {
 
     useEffect(() => {
         if (showModal || !name) return;
-        const wsUrl = `ws://localhost:3001/ws/${GAME_ID}`;
+        const wsUrl = `ws://${WS_BASE_URL}:3001/ws/${GAME_ID}`;
         const socket = new window.WebSocket(wsUrl);
         setWs(socket);
         socket.onopen = () => {
-            socket.send(JSON.stringify({ type: 'join', name, gameId: GAME_ID }));
+            socket.send(JSON.stringify({ type: 'join', name, gameId: GAME_ID, walletAddress: '0x8e3a9b2c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a' }));
         };
         socket.onmessage = e => {
             const msg = JSON.parse(e.data);
@@ -85,7 +88,8 @@ export default function Play() {
         const draw = (t: number) => {
             time.current = t / 1000;
             const { w, h } = viewport;
-            const me = players.find(p => p.id === myId) || { x: WORLD_W / 2, y: WORLD_H / 2 };
+            const me = players.find(p => p.id === myId) || { x: WORLD_W / 2, y: WORLD_H / 2, score: 0 };
+            const getRadius = (score: number) => PLAYER_RADIUS + PLAYER_RADIUS_GROWTH * score;
             const dx = player.current.targetX - player.current.x;
             const dy = player.current.targetY - player.current.y;
             const distToTarget = Math.hypot(dx, dy);
@@ -102,8 +106,8 @@ export default function Play() {
             const mouseWorld = { x: camX + mouse.current.x, y: camY + mouse.current.y };
             player.current.targetX += (mouseWorld.x - player.current.targetX) * 0.2;
             player.current.targetY += (mouseWorld.y - player.current.targetY) * 0.2;
-            player.current.x = Math.max(PLAYER_RADIUS, Math.min(WORLD_W - PLAYER_RADIUS, player.current.x));
-            player.current.y = Math.max(PLAYER_RADIUS, Math.min(WORLD_H - PLAYER_RADIUS, player.current.y));
+            player.current.x = Math.max(getRadius(score), Math.min(WORLD_W - getRadius(score), player.current.x));
+            player.current.y = Math.max(getRadius(score), Math.min(WORLD_H - getRadius(score), player.current.y));
             sendMove();
             const camera = {
                 x: Math.max(0, Math.min(WORLD_W - w, me.x - w / 2)),
@@ -117,9 +121,19 @@ export default function Play() {
             ctx.strokeStyle = '#bae6fd';
             ctx.lineWidth = 8;
             ctx.strokeRect(0, 0, WORLD_W, WORLD_H);
+            // Draw a clear border for the world edges
+            ctx.save();
+            ctx.lineWidth = 18;
+            ctx.strokeStyle = '#0ea5e9';
+            ctx.shadowColor = '#0ea5e9';
+            ctx.shadowBlur = 0;
+            ctx.strokeRect(0, 0, WORLD_W, WORLD_H);
+            ctx.restore();
+            const getFoodRadius = (score: number) => FOOD_RADIUS + FOOD_RADIUS_GROWTH * score;
             food.current.forEach(f => {
+                const r = getFoodRadius(f.score || 0);
                 ctx.beginPath();
-                ctx.arc(f.x, f.y, FOOD_RADIUS, 0, 2 * Math.PI);
+                ctx.arc(f.x, f.y, r, 0, 2 * Math.PI);
                 ctx.fillStyle = '#4ade80';
                 ctx.shadowColor = '#22d3ee';
                 ctx.shadowBlur = 8;
@@ -129,13 +143,14 @@ export default function Play() {
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillStyle = '#0f172a';
-                ctx.fillText(f.score, f.x, f.y - FOOD_RADIUS - 8);
+                ctx.fillText(f.score, f.x, f.y - r - 8);
             });
             players.forEach(p => {
                 const isMe = p.id === myId;
                 const wobble = Math.sin(time.current * 2 + (isMe ? 0 : p.id.length)) * 2;
+                const radius = getRadius(p.score || 0) + wobble;
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, PLAYER_RADIUS + wobble, 0, 2 * Math.PI);
+                ctx.arc(p.x, p.y, radius, 0, 2 * Math.PI);
                 ctx.fillStyle = isMe ? '#60a5fa' : '#818cf8';
                 ctx.shadowColor = isMe ? '#2563eb' : '#6366f1';
                 ctx.shadowBlur = isMe ? 16 : 8;
@@ -164,11 +179,13 @@ export default function Play() {
         if (!ws || !myId) return;
         const handleClick = (e: MouseEvent) => {
             const { w, h } = viewport;
-            const me = players.find(p => p.id === myId) || { x: WORLD_W / 2, y: WORLD_H / 2 };
+            const me = players.find(p => p.id === myId) || { x: WORLD_W / 2, y: WORLD_H / 2, score: 0 };
+            const getRadius = (score: number) => PLAYER_RADIUS + PLAYER_RADIUS_GROWTH * score;
+            const getFoodRadius = (score: number) => FOOD_RADIUS + FOOD_RADIUS_GROWTH * score;
             const camX = me.x - w / 2;
             const camY = me.y - h / 2;
             const clickWorld = { x: camX + e.clientX, y: camY + e.clientY };
-            const f = food.current.find(f => Math.hypot(f.x - clickWorld.x, f.y - clickWorld.y) < FOOD_RADIUS + PLAYER_RADIUS);
+            const f = food.current.find(f => Math.hypot(f.x - clickWorld.x, f.y - clickWorld.y) < getFoodRadius(f.score || 0) + getRadius(me.score || 0));
             if (f) ws.send(JSON.stringify({ type: 'eat', foodId: f.id }));
         };
         const canvas = canvasRef.current;
@@ -202,29 +219,30 @@ export default function Play() {
                     justifyContent: 'center',
                 }}>
                     <form onSubmit={handleSubmit} style={{
-                        background: '#fff',
-                        borderRadius: 24,
-                        padding: '32px 40px',
-                        boxShadow: '0 8px 32px 0 rgba(0,0,0,0.18)',
+                        background: 'rgba(255,255,255,0.98)',
+                        borderRadius: 20,
+                        padding: '28px 36px',
+                        boxShadow: '0 4px 24px 0 rgba(0,0,0,0.10)',
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
-                        gap: 20,
-                        minWidth: 320,
+                        gap: 18,
+                        minWidth: 260,
                     }}>
-                        <h2 style={{ color: '#0f172a', fontWeight: 700, fontSize: 28, margin: 0 }}>Enter your name</h2>
+                        <h2 style={{ color: '#0f172a', fontWeight: 700, fontSize: 24, margin: 0 }}>Enter your name</h2>
                         <input
                             ref={nameInputRef}
                             value={name}
                             onChange={e => setName(e.target.value)}
                             style={{
-                                fontSize: 20,
-                                padding: '10px 18px',
-                                borderRadius: 12,
+                                fontSize: 18,
+                                padding: '8px 14px',
+                                borderRadius: 10,
                                 border: '1.5px solid #94a3b8',
                                 outline: 'none',
-                                width: 200,
+                                width: 180,
                                 textAlign: 'center',
+                                background: '#f8fafc',
                             }}
                             maxLength={16}
                             placeholder="Your name"
@@ -234,13 +252,13 @@ export default function Play() {
                             background: '#2563eb',
                             color: '#fff',
                             border: 'none',
-                            borderRadius: 12,
-                            padding: '10px 28px',
-                            fontSize: 20,
+                            borderRadius: 10,
+                            padding: '8px 22px',
+                            fontSize: 18,
                             fontWeight: 600,
                             cursor: 'pointer',
-                            marginTop: 8,
-                            boxShadow: '0 2px 8px 0 rgba(30,41,59,0.10)',
+                            marginTop: 6,
+                            boxShadow: '0 1px 4px 0 rgba(30,41,59,0.08)',
                             transition: 'background 0.2s',
                         }}>Play</button>
                     </form>
@@ -257,28 +275,28 @@ export default function Play() {
                     justifyContent: 'center',
                 }}>
                     <div style={{
-                        background: '#fff',
-                        borderRadius: 24,
-                        padding: '32px 40px',
-                        boxShadow: '0 8px 32px 0 rgba(0,0,0,0.18)',
+                        background: 'rgba(255,255,255,0.98)',
+                        borderRadius: 20,
+                        padding: '28px 36px',
+                        boxShadow: '0 4px 24px 0 rgba(0,0,0,0.10)',
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
-                        gap: 20,
-                        minWidth: 320,
+                        gap: 18,
+                        minWidth: 260,
                     }}>
-                        <h2 style={{ color: '#dc2626', fontWeight: 700, fontSize: 28, margin: 0 }}>You were eaten! Game over.</h2>
+                        <h2 style={{ color: '#dc2626', fontWeight: 700, fontSize: 24, margin: 0 }}>You were eaten! Game over.</h2>
                         <button onClick={handleRestart} style={{
                             background: '#2563eb',
                             color: '#fff',
                             border: 'none',
-                            borderRadius: 12,
-                            padding: '10px 28px',
-                            fontSize: 20,
+                            borderRadius: 10,
+                            padding: '8px 22px',
+                            fontSize: 18,
                             fontWeight: 600,
                             cursor: 'pointer',
-                            marginTop: 8,
-                            boxShadow: '0 2px 8px 0 rgba(30,41,59,0.10)',
+                            marginTop: 6,
+                            boxShadow: '0 1px 4px 0 rgba(30,41,59,0.08)',
                             transition: 'background 0.2s',
                         }}>Restart</button>
                     </div>
@@ -286,30 +304,73 @@ export default function Play() {
             )}
             <div style={{
                 position: 'fixed',
-                top: 24,
+                top: 18,
                 left: '50%',
                 transform: 'translateX(-50%)',
                 zIndex: 10,
-                background: 'rgba(30,41,59,0.85)',
+                background: 'rgba(30,41,59,0.92)',
                 color: '#fff',
-                borderRadius: '32px',
-                minWidth: 120,
-                minHeight: 40,
-                padding: '0 32px',
+                borderRadius: '24px',
+                minWidth: 90,
+                minHeight: 32,
+                padding: '0 22px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontWeight: 600,
-                fontSize: 22,
-                boxShadow: '0 4px 24px 0 rgba(0,0,0,0.18)',
-                transition: 'all 0.3s cubic-bezier(.4,1.6,.6,1)',
-                border: '2px solid #334155',
+                fontSize: 18,
                 letterSpacing: 1,
-                gap: 12,
+                gap: 10,
+                border: '1.5px solid #334155',
+                boxShadow: '0 2px 8px 0 rgba(0,0,0,0.08)',
             }}>
                 <span role="img" aria-label="score">🍽️</span> {score}
             </div>
-            <canvas ref={canvasRef} style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', display: 'block', background: '#f0f9ff' }} />
+            <canvas
+                ref={canvasRef}
+                style={{
+                    position: 'fixed',
+                    inset: 0,
+                    width: '100vw',
+                    height: '100vh',
+                    minWidth: '100vw',
+                    minHeight: '100vh',
+                    maxWidth: '100vw',
+                    maxHeight: '100vh',
+                    display: 'block',
+                    background: 'radial-gradient(circle at 60% 40%, #e0f2fe 0%, #bae6fd 100%)',
+                    margin: 0,
+                    padding: 0,
+                    border: 'none',
+                    outline: 'none',
+                    zIndex: 0,
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    MozUserSelect: 'none',
+                    msUserSelect: 'none',
+                    overflow: 'hidden',
+                }}
+            />
+            <style jsx global>{`
+                html, body, #__next {
+                    height: 100%;
+                    width: 100%;
+                    margin: 0;
+                    padding: 0;
+                    overflow: hidden;
+                    background: none;
+                }
+                body {
+                    overscroll-behavior: none;
+                }
+                *, *::before, *::after {
+                    box-sizing: border-box;
+                }
+                #__next > div {
+                    height: 100%;
+                    width: 100%;
+                }
+            `}</style>
         </>
     );
 } 
